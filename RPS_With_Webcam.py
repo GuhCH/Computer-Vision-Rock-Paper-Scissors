@@ -40,12 +40,16 @@ def readModel(model,cap,data,comp_image,score):
 
 # Displays the camera without running TF model to save processing power
 def readCam(cap,comp_image,score):
+    border = np.zeros((50,1280,3), np.uint8) + 255
     ret, frame = cap.read()
     frame1 = cv2.resize(frame, (640, 480), interpolation = cv2.INTER_AREA)
     comp_image1 = cv2.resize(comp_image, (640, 480), interpolation = cv2.INTER_AREA)
-    full_img = np.hstack((frame1, comp_image1))
+    combined_img = np.hstack((frame1, comp_image1))
+    full_img = np.vstack((border,combined_img,border))
     cv2.putText(full_img, 'Score:' + str(score[0]), (20,40), cv2.FONT_HERSHEY_PLAIN, 3, (0,0,0), 2)
     cv2.putText(full_img, 'Score:' + str(score[1]), (1070,40), cv2.FONT_HERSHEY_PLAIN, 3, (0,0,0), 2)
+    cv2.putText(full_img, 'Press P to play!', (20,570), cv2.FONT_HERSHEY_PLAIN, 3, (0,0,0), 2)
+    cv2.putText(full_img, 'Hold Q to quit!', (900,570), cv2.FONT_HERSHEY_PLAIN, 3, (0,0,0), 2)
     cv2.imshow('frame', full_img)
 
 # Counts for 4 seconds, saying "Rock, Paper, Scissors, Shoot" 
