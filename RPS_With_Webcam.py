@@ -9,16 +9,16 @@ def playRPS(answer):
     imgStates = ["rock.jpg","paper.jpg","scissors.jpg"]
     comp = np.random.randint(3)
     if answer > 2:
-        return [0,0], "Invalid answer, try again!", cv2.imread(imgStates[comp])
+        return 3, cv2.imread(imgStates[comp])
     elif answer-comp == 1 or answer-comp == -2:
-        return [1,0], "Your " + states[answer] + " beats my " + states[comp] + ". You win this round!", cv2.imread(imgStates[comp])
+        return 0, cv2.imread(imgStates[comp])
     elif answer == comp:
-        return [0,0], "We both play " + states[answer] + ". It's a draw!", cv2.imread(imgStates[comp])
+        return 2, cv2.imread(imgStates[comp])
     else:
-        return [0,1], "My " + states[comp] + " beats your " + states[answer] + ". You lose this round!", cv2.imread(imgStates[comp])
+        return 1, cv2.imread(imgStates[comp])
 
 # Displays the camera and runs the TensorFLow model
-def readModel(model,cap,data,comp_image,score):
+def readModel(model,cap,data,comp_image,score,centre_text):
     ret, frame = cap.read()
     resized_frame = cv2.resize(frame, (224, 224), interpolation = cv2.INTER_AREA)
     image_np = np.array(resized_frame)
@@ -30,6 +30,8 @@ def readModel(model,cap,data,comp_image,score):
     full_img = np.hstack((frame1, comp_image1))
     cv2.putText(full_img, 'Score:' + str(score[0]), (20,40), cv2.FONT_HERSHEY_PLAIN, 3, (0,0,0), 2)
     cv2.putText(full_img, 'Score:' + str(score[1]), (1070,40), cv2.FONT_HERSHEY_PLAIN, 3, (0,0,0), 2)
+    cv2.putText(full_img, 'Press P to play!', (20,570), cv2.FONT_HERSHEY_PLAIN, 3, (0,0,0), 2)
+    cv2.putText(full_img, 'Hold Q to quit!', (900,570), cv2.FONT_HERSHEY_PLAIN, 3, (0,0,0), 2)
     cv2.imshow('frame', full_img)
 
     # If model has >80% confidence in an answer, returns argument of that answer
@@ -39,28 +41,34 @@ def readModel(model,cap,data,comp_image,score):
     else: return 3
 
 # Displays the camera without running TF model to save processing power
-def readCam(cap,comp_image,score):
+def readCam(cap,comp_image,score,centre_text):
     border = np.zeros((50,1280,3), np.uint8) + 255
     ret, frame = cap.read()
     frame1 = cv2.resize(frame, (640, 480), interpolation = cv2.INTER_AREA)
     comp_image1 = cv2.resize(comp_image, (640, 480), interpolation = cv2.INTER_AREA)
     combined_img = np.hstack((frame1, comp_image1))
     full_img = np.vstack((border,combined_img,border))
-    cv2.putText(full_img, 'Score:' + str(score[0]), (20,40), cv2.FONT_HERSHEY_PLAIN, 3, (0,0,0), 2)
-    cv2.putText(full_img, 'Score:' + str(score[1]), (1070,40), cv2.FONT_HERSHEY_PLAIN, 3, (0,0,0), 2)
-    cv2.putText(full_img, 'Press P to play!', (20,570), cv2.FONT_HERSHEY_PLAIN, 3, (0,0,0), 2)
-    cv2.putText(full_img, 'Hold Q to quit!', (900,570), cv2.FONT_HERSHEY_PLAIN, 3, (0,0,0), 2)
+    textfont = cv2.FONT_HERSHEY_PLAIN
+    cv2.putText(full_img, 'Score:' + str(score[0]), (20,40), textfont, 3, (0,0,0), 2)
+    cv2.putText(full_img, 'Score:' + str(score[1]), (1070,40), textfont, 3, (0,0,0), 2)
+    cv2.putText(full_img, 'Press P to play!', (20,570), textfont, 3, (0,0,0), 2)
+    cv2.putText(full_img, 'Hold Q to quit!', (900,570), textfont, 3, (0,0,0), 2)
+    ct_size = cv2.getTextSize(centre_text,textfont,3, 2)[0]
+    ct_X = int(np.floor((full_img.shape[1] - ct_size[0]) / 2))
+    cv2.putText(full_img, centre_text, (ct_X,40), textfont, 3, (0,0,0), 2)
     cv2.imshow('frame', full_img)
 
 # Counts for 4 seconds, saying "Rock, Paper, Scissors, Shoot" 
 # Returns false if quit button is pressed in this time so round does not go ahead
 def countdown(cap,score):
-    words = ["rock.jpg","paper.jpg","scissors.jpg","shoot.png"]
+    pictures = ["rock.jpg","paper.jpg","scissors.jpg","shoot.png"]
+    words = ['Rock...','Paper...','Scissors...','Shoot!']
     for i in range(4):
-        comp_image = cv2.imread(words[i])
+        comp_image = cv2.imread(pictures[i])
+        centre_text = words[i]
         t0 = time.clock_gettime(time.CLOCK_BOOTTIME)
         while time.clock_gettime(time.CLOCK_BOOTTIME)-t0 < 1: 
-            readCam(cap,comp_image,score)
+            readCam(cap,comp_image,score,centre_text)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 return False
     return True
@@ -71,29 +79,41 @@ comp_image = cv2.imread('wait_screen.png')
 data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
 score = [0,0]
 our_pronouns = ["You ","I "]
+centre_text = ""
 while np.max(score) < 3:
-    readCam(cap,comp_image,score)
+    readCam(cap,comp_image,score,centre_text)
     if cv2.waitKey(1) & 0xFF == ord('p'):
         if countdown(cap,score) == True:
-            answer = readModel(model,cap,data,comp_image,score)
-            scoreChange, out_msg, comp_image = playRPS(answer)
-            print(out_msg)
-            if out_msg != "Invalid answer, try again!":
-                score[0] += scoreChange[0]
-                score[1] += scoreChange[1]
-                print("The score is now:")
-                print("You: " + str(score[0]))
-                print("Me: " + str(score[1]))
-                t0 = time.clock_gettime(time.CLOCK_BOOTTIME)
-                while time.clock_gettime(time.CLOCK_BOOTTIME)-t0 < 2: 
-                    readCam(cap,comp_image,score)
-                    if cv2.waitKey(1) & 0xFF == ord('q'):
-                        break
+            answer = readModel(model,cap,data,comp_image,score,centre_text)
+            result, comp_image = playRPS(answer)
+            if result == 0:
+                score[0] += 1
+                centre_text = "You win!"
+            elif result == 1:
+                score[1] += 1
+                centre_text = "You lose!"
+            elif result == 2:
+                centre_text = "It's a draw!"
+            else: centre_text = "Try again!"
+            t0 = time.clock_gettime(time.CLOCK_BOOTTIME)
+            while time.clock_gettime(time.CLOCK_BOOTTIME)-t0 < 1: 
+                readCam(cap,comp_image,score,centre_text)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+            centre_text = ""
             comp_image = cv2.imread('wait_screen.png')
         else: break
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 if np.max(score) == 3:
-    print(our_pronouns[np.argmax(score)] + "win!")
-else: print("Game cancelled.")
-print("Goodbye!")
+    centre_text = our_pronouns[np.argmax(score)] + "win the match!"
+else: centre_text = "Game cancelled."
+t0 = time.clock_gettime(time.CLOCK_BOOTTIME)
+while time.clock_gettime(time.CLOCK_BOOTTIME)-t0 < 1: 
+    readCam(cap,comp_image,score,centre_text)
+    cv2.waitKey(1)
+centre_text = "Goodbye!"
+t0 = time.clock_gettime(time.CLOCK_BOOTTIME)
+while time.clock_gettime(time.CLOCK_BOOTTIME)-t0 < 1: 
+    readCam(cap,comp_image,score,centre_text)
+    cv2.waitKey(1)
